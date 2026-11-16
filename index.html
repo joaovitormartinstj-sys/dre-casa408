@@ -109,6 +109,9 @@
     
     .empty { text-align: center; padding: 40px; color: #9ca3af; }
     .alert { padding: 12px; border-radius: 8px; margin-bottom: 16px; font-size: 14px; }
+    /* Avisos flutuando no rodapé da tela (visíveis mesmo com a página rolada) */
+    #alerta { position: fixed; left: 12px; right: 12px; bottom: calc(16px + env(safe-area-inset-bottom)); z-index: 100; max-width: 520px; margin: 0 auto; pointer-events: none; }
+    #alerta .alert { margin: 0; box-shadow: 0 6px 20px rgba(0,0,0,0.18); font-weight: 600; }
     .alert-success { background: #d1fae5; color: #065f46; }
     .alert-error { background: #fee2e2; color: #991b1b; }
     .loading { text-align: center; padding: 20px; color: #666; }
@@ -141,6 +144,33 @@
     .tabela-dre .coluna-valor { text-align: right; font-family: 'Courier New', monospace; }
     .tabela-dre .coluna-perc { text-align: center; color: #6b7280; }
     
+    .tabela-dre .valor-saldo { font-size: 18px; }
+    .tabela-dre th.coluna-perc { color: white; }
+    .so-cel { display: none; }
+
+    /* ===== DRE no celular: cabe na tela, sem rolar para o lado ===== */
+    @media (max-width: 600px) {
+      .tabela-dre#tabela-dre { table-layout: fixed; font-size: 12.5px; }
+      #tabela-dre th, #tabela-dre td { padding: 8px 4px; overflow-wrap: break-word; }
+      #tabela-dre .coluna-perc, #tabela-dre .coluna-valor { white-space: nowrap; }
+      #tabela-dre th { font-size: 11.5px; line-height: 1.25; }
+      #tabela-dre th:nth-child(1) { width: 41% !important; }
+      #tabela-dre th:nth-child(2) { width: 27% !important; }
+      #tabela-dre th:nth-child(3) { width: 14% !important; }
+      #tabela-dre th:nth-child(4) { width: 18% !important; }
+      #tabela-dre th:nth-child(4) { white-space: normal; }
+      .so-pc { display: none; } .so-cel { display: inline !important; }
+      #tabela-dre th:nth-child(5), #tabela-dre td:nth-child(5) { display: none; } /* coluna Tipo */
+      #tabela-dre .coluna-valor { font-family: inherit; font-variant-numeric: tabular-nums; }
+      #tabela-dre .coluna-perc { font-size: 11.5px; }
+      #tabela-dre .indent-1 { padding-left: 8px; }
+      #tabela-dre .indent-2 { padding-left: 14px; font-size: 12px; }
+      #tabela-dre .linha-resultado { font-size: 13.5px; }
+      #tabela-dre .valor-saldo { font-size: 14.5px; }
+      #tabela-dre td[colspan] { font-size: 12.5px; line-height: 1.6; }
+      .filtro-dre { gap: 8px; }
+      .legenda-dre { gap: 8px; }
+    }
     .legenda-dre { display: flex; gap: 20px; margin-top: 16px; flex-wrap: wrap; font-size: 12px; }
     .legenda-item { display: flex; align-items: center; gap: 6px; }
     .legenda-cor { width: 12px; height: 12px; border-radius: 3px; }
@@ -324,12 +354,12 @@
         <div id="orcamento-alimentacao" style="margin-bottom: 24px;"></div>
         
         <div style="overflow-x: auto;">
-          <table class="tabela-dre">
+          <table class="tabela-dre" id="tabela-dre">
             <thead>
               <tr>
                 <th style="width: 42%;">Descrição</th>
                 <th class="coluna-valor" style="width: 20%;">Valor (R$)</th>
-                <th class="coluna-perc" style="width: 12%;">% Receita</th>
+                <th class="coluna-perc" style="width: 12%;"><span class="so-pc">% Receita</span><span class="so-cel">%</span></th>
                 <th class="coluna-perc" style="width: 16%;" id="th-var-aa">Var. 1 ano</th>
                 <th class="coluna-perc" style="width: 10%;">Tipo</th>
               </tr>
@@ -501,7 +531,13 @@
           body: JSON.stringify({ senha: conexao.senha, acao, dados }),
           signal: ctrl.signal
         });
-        const json = await resp.json();
+        const texto = await resp.text();
+        let json;
+        try { json = JSON.parse(texto); }
+        catch (e) {
+          const trecho = texto.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160);
+          throw new Error('o Apps Script respondeu algo que não é do app: "' + trecho + '"');
+        }
         if (json.erro === 'senha') { trocarConexao('Senha incorreta. Configure de novo.'); throw new Error('Senha incorreta'); }
         return json;
       } finally {
@@ -566,7 +602,7 @@
       conexao = { url, senha };
       try {
         const r = await api('ping');
-        if (!r.sucesso) throw new Error(r.msg || 'Falhou');
+        if (!r.sucesso) throw new Error(r.msg || ('resposta inesperada ' + JSON.stringify(r).slice(0, 160) + ' — parece outro código/versão no Apps Script'));
         LS.set('dre-conexao', conexao);
         document.body.classList.remove('sem-config');
         iniciar();
@@ -605,6 +641,12 @@
         ? 'Atualizado ' + new Date(quando).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
         : '';
     }
+
+    // No celular não existe "passar o mouse": tocar na variação mostra o valor do ano anterior
+    document.addEventListener('click', ev => {
+      const td = ev.target.closest('#tabela-dre td[title]');
+      if (td) alerta('📅 ' + td.title, 'success');
+    });
 
     // Chamado no fim do script, depois de todas as funções existirem
     function boot() {
@@ -1204,6 +1246,9 @@
       }
     }
     
+    const fmt = v => (Number(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const fmtP = v => (Number(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%';
+
     function renderizarDRE() {
       const filtroPessoa = document.getElementById('filtro-pessoa').value;
       const filtroPeriodo = document.getElementById('filtro-periodo').value;
@@ -1253,15 +1298,15 @@
       // Célula de variação: tipo 'bom-subir' (receita/resultado) ou 'bom-descer' (despesa)
       function celVar(atual, anterior, tipo) {
         if (!temComparacao) return '<td class="coluna-perc" title="Escolha Mês atual ou Mês anterior para comparar">-</td>';
-        const dica = `title="${labelAA}: R$ ${anterior.toFixed(2)}"`;
+        const dica = `title="${labelAA}: R$ ${fmt(anterior)}"`;
         if (anterior === 0 && atual === 0) return `<td class="coluna-perc" ${dica}>-</td>`;
         if (anterior === 0) return `<td class="coluna-perc" ${dica} style="color: #6b7280; font-style: italic;">novo</td>`;
         const perc = ((atual - anterior) / Math.abs(anterior)) * 100;
-        if (Math.abs(perc) < 0.05) return `<td class="coluna-perc" ${dica}>0.0%</td>`;
+        if (Math.abs(perc) < 0.05) return `<td class="coluna-perc" ${dica}>0,0%</td>`;
         const subiu = perc > 0;
         const bom = tipo === 'bom-subir' ? subiu : !subiu;
         const cor = bom ? '#10b981' : '#ef4444';
-        return `<td class="coluna-perc" ${dica} style="color: ${cor}; font-weight: 600;">${subiu ? '▲' : '▼'} ${Math.abs(perc).toFixed(1)}%</td>`;
+        return `<td class="coluna-perc" ${dica} style="color: ${cor}; font-weight: 600;">${subiu ? '▲' : '▼'} ${fmtP(Math.abs(perc))}</td>`;
       }
 
       // Calcular totais
@@ -1283,9 +1328,9 @@
           <div class="grafico-card" style="margin-bottom: 0;">
             <div class="canvas-container" style="height: 200px;"><canvas id="graficoAlimentacao"></canvas></div>
             <div class="orcamento-info" style="margin-top: 16px;">
-              <span>💸 Realizado: R$ ${realizadoTotalAlimentacao.toFixed(2)} (🍽️ R$ ${realizadoAlimentacao.toFixed(2)} + 🍕 R$ ${realizadoLanchePizza.toFixed(2)})</span>
+              <span>💸 Realizado: R$ ${fmt(realizadoTotalAlimentacao)} (🍽️ R$ ${fmt(realizadoAlimentacao)} + 🍕 R$ ${fmt(realizadoLanchePizza)})</span>
               <span style="color: ${saldoTotal >= 0 ? '#10b981' : '#ef4444'}; font-weight: 600;">
-                ${saldoTotal >= 0 ? '💰 Saldo' : '⚠️ Excedeu'}: R$ ${Math.abs(saldoTotal).toFixed(2)}
+                ${saldoTotal >= 0 ? '💰 Saldo' : '⚠️ Excedeu'}: R$ ${fmt(Math.abs(saldoTotal))}
               </span>
             </div>
           </div>`;
@@ -1330,7 +1375,7 @@
               legend: { position: 'bottom', labels: { font: { size: 12 }, boxWidth: 12, padding: 14 } },
               tooltip: {
                 callbacks: {
-                  label: ctx => ctx.parsed.x > 0 ? `${ctx.dataset.label}: R$ ${ctx.parsed.x.toFixed(2)}` : null
+                  label: ctx => ctx.parsed.x > 0 ? `${ctx.dataset.label}: R$ ${fmt(ctx.parsed.x)}` : null
                 }
               }
             }
@@ -1410,8 +1455,8 @@
       let html = `
         <tr>
           <td><strong>💵 RECEITAS</strong></td>
-          <td class="coluna-valor valor-positivo">${totalReceitas.toFixed(2)}</td>
-          <td class="coluna-perc">100,0%</td>
+          <td class="coluna-valor valor-positivo">${fmt(totalReceitas)}</td>
+          <td class="coluna-perc">100%</td>
           ${celVar(totalReceitas, ant.receitas, 'bom-subir')}
           <td class="coluna-perc">-</td>
         </tr>
@@ -1420,16 +1465,16 @@
         
         <tr>
           <td><strong>💸 DESPESAS TOTAIS</strong></td>
-          <td class="coluna-valor valor-negativo">(${totalDespesas.toFixed(2)})</td>
-          <td class="coluna-perc">${pct(totalDespesas).toFixed(1)}%</td>
+          <td class="coluna-valor valor-negativo">(${fmt(totalDespesas)})</td>
+          <td class="coluna-perc">${fmtP(pct(totalDespesas))}</td>
           ${celVar(totalDespesas, ant.despesas, 'bom-descer')}
           <td class="coluna-perc">-</td>
         </tr>
         
         <tr class="linha-subtotal">
           <td class="indent-1">🔴 Custos Fixos</td>
-          <td class="coluna-valor">(${totalFixo.toFixed(2)})</td>
-          <td class="coluna-perc">${percFixo.toFixed(1)}%</td>
+          <td class="coluna-valor">(${fmt(totalFixo)})</td>
+          <td class="coluna-perc">${fmtP(percFixo)}</td>
           ${celVar(totalFixo, ant.fixo, 'bom-descer')}
           <td class="coluna-perc"><span class="cor-fixo" style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #ef4444;"></span></td>
         </tr>`;
@@ -1439,8 +1484,8 @@
         html += `
           <tr>
             <td class="indent-2">${esc(cat)}</td>
-            <td class="coluna-valor">(${valor.toFixed(2)})</td>
-            <td class="coluna-perc">${pct(valor).toFixed(1)}%</td>
+            <td class="coluna-valor">(${fmt(valor)})</td>
+            <td class="coluna-perc">${fmtP(pct(valor))}</td>
             ${celVar(valor, valorAA, 'bom-descer')}
             <td class="coluna-perc">Fixo</td>
           </tr>`;
@@ -1449,8 +1494,8 @@
       html += `
         <tr class="linha-subtotal">
           <td class="indent-1">🟠 Custos Variáveis</td>
-          <td class="coluna-valor">(${totalVariavel.toFixed(2)})</td>
-          <td class="coluna-perc">${percVariavel.toFixed(1)}%</td>
+          <td class="coluna-valor">(${fmt(totalVariavel)})</td>
+          <td class="coluna-perc">${fmtP(percVariavel)}</td>
           ${celVar(totalVariavel, ant.variavel, 'bom-descer')}
           <td class="coluna-perc"><span class="cor-variavel" style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #f59e0b;"></span></td>
         </tr>`;
@@ -1460,8 +1505,8 @@
         html += `
           <tr>
             <td class="indent-2">${esc(cat)}</td>
-            <td class="coluna-valor">(${valor.toFixed(2)})</td>
-            <td class="coluna-perc">${pct(valor).toFixed(1)}%</td>
+            <td class="coluna-valor">(${fmt(valor)})</td>
+            <td class="coluna-perc">${fmtP(pct(valor))}</td>
             ${celVar(valor, valorAA, 'bom-descer')}
             <td class="coluna-perc">Var.</td>
           </tr>`;
@@ -1472,8 +1517,8 @@
         
         <tr class="linha-resultado">
           <td><strong>💰 RESULTADO (Receitas - Despesas)</strong></td>
-          <td class="coluna-valor" style="color: ${lucroOperacional >= 0 ? '#10b981' : '#ef4444'}">${lucroOperacional >= 0 ? '' : '('}${Math.abs(lucroOperacional).toFixed(2)}${lucroOperacional >= 0 ? '' : ')'}</td>
-          <td class="coluna-perc"><strong>${margemLucro.toFixed(1)}%</strong></td>
+          <td class="coluna-valor" style="color: ${lucroOperacional >= 0 ? '#10b981' : '#ef4444'}">${lucroOperacional >= 0 ? '' : '('}${fmt(Math.abs(lucroOperacional))}${lucroOperacional >= 0 ? '' : ')'}</td>
+          <td class="coluna-perc"><strong>${fmtP(margemLucro)}</strong></td>
           ${celVar(lucroOperacional, ant.resultado, 'bom-subir')}
           <td class="coluna-perc">${lucroOperacional >= 0 ? '✅' : '❌'}</td>
         </tr>
@@ -1482,16 +1527,16 @@
         
         <tr style="background: #dbeafe; border-top: 2px solid #3b82f6;">
           <td><strong>💎 INVESTIMENTOS</strong></td>
-          <td class="coluna-valor" style="color: #3b82f6; font-weight: 700;">(${investimentos.toFixed(2)})</td>
-          <td class="coluna-perc"><strong>${percInvest.toFixed(1)}%</strong></td>
+          <td class="coluna-valor" style="color: #3b82f6; font-weight: 700;">(${fmt(investimentos)})</td>
+          <td class="coluna-perc"><strong>${fmtP(percInvest)}</strong></td>
           ${celVar(investimentos, ant.investimentos, 'bom-subir')}
           <td class="coluna-perc">💰</td>
         </tr>
         
         <tr style="background: #f3e8ff; border-top: 2px solid #8b5cf6;">
           <td><strong>💳 ANTECIPAÇÃO DE DÍVIDAS</strong></td>
-          <td class="coluna-valor" style="color: #8b5cf6; font-weight: 700;">(${antecipacao.toFixed(2)})</td>
-          <td class="coluna-perc"><strong>${percAntecipacao.toFixed(1)}%</strong></td>
+          <td class="coluna-valor" style="color: #8b5cf6; font-weight: 700;">(${fmt(antecipacao)})</td>
+          <td class="coluna-perc"><strong>${fmtP(percAntecipacao)}</strong></td>
           ${celVar(antecipacao, ant.antecipacao, 'bom-subir')}
           <td class="coluna-perc">💳</td>
         </tr>
@@ -1500,10 +1545,10 @@
         
         <tr style="background: #f0fdf4; border-top: 3px solid #10b981;">
           <td><strong>💵 SALDO FINAL (Resultado - Investimentos - Antecipação)</strong></td>
-          <td class="coluna-valor" style="color: ${saldoFinal >= 0 ? '#10b981' : '#ef4444'}; font-weight: 700; font-size: 18px;">
-            ${saldoFinal >= 0 ? '' : '('}${Math.abs(saldoFinal).toFixed(2)}${saldoFinal >= 0 ? '' : ')'}
+          <td class="coluna-valor valor-saldo" style="color: ${saldoFinal >= 0 ? '#10b981' : '#ef4444'}; font-weight: 700;">
+            ${saldoFinal >= 0 ? '' : '('}${fmt(Math.abs(saldoFinal))}${saldoFinal >= 0 ? '' : ')'}
           </td>
-          <td class="coluna-perc"><strong>${pct(saldoFinal).toFixed(1)}%</strong></td>
+          <td class="coluna-perc"><strong>${fmtP(pct(saldoFinal))}</strong></td>
           ${celVar(saldoFinal, ant.saldoFinal, 'bom-subir')}
           <td class="coluna-perc">${saldoFinal >= 0 ? '💚' : '⚠️'}</td>
         </tr>
@@ -1513,13 +1558,13 @@
         <tr style="background: #f9fafb;">
           <td colspan="5" style="padding: 16px;">
             <strong>📊 Indicadores:</strong><br>
-            • Margem de Lucro: <strong style="color: ${lucroOperacional >= 0 ? '#10b981' : '#ef4444'}">${margemLucro.toFixed(1)}%</strong><br>
-            • Custos Fixos representam: <strong>${percFixo.toFixed(1)}%</strong> da receita<br>
-            • Custos Variáveis representam: <strong>${percVariavel.toFixed(1)}%</strong> da receita<br>
-            • Investimentos representam: <strong style="color: #3b82f6">${percInvest.toFixed(1)}%</strong> da receita<br>
-            • Antecipação de Dívidas representa: <strong style="color: #8b5cf6">${percAntecipacao.toFixed(1)}%</strong> da receita<br>
-            • Saldo Final: <strong style="color: ${saldoFinal >= 0 ? '#10b981' : '#ef4444'}">R$ ${saldoFinal.toFixed(2)}</strong>
-            ${temComparacao ? `<br><span style="color: #6b7280; font-size: 12px;">Var. vs ${labelAA}: comparação com o mesmo mês do ano anterior (▲ subiu, ▼ caiu; verde = bom, vermelho = ruim). Passe o mouse para ver o valor de ${labelAA}.</span>` : ''}
+            • Margem de Lucro: <strong style="color: ${lucroOperacional >= 0 ? '#10b981' : '#ef4444'}">${fmtP(margemLucro)}</strong><br>
+            • Custos Fixos representam: <strong>${fmtP(percFixo)}</strong> da receita<br>
+            • Custos Variáveis representam: <strong>${fmtP(percVariavel)}</strong> da receita<br>
+            • Investimentos representam: <strong style="color: #3b82f6">${fmtP(percInvest)}</strong> da receita<br>
+            • Antecipação de Dívidas representa: <strong style="color: #8b5cf6">${fmtP(percAntecipacao)}</strong> da receita<br>
+            • Saldo Final: <strong style="color: ${saldoFinal >= 0 ? '#10b981' : '#ef4444'}">R$ ${fmt(saldoFinal)}</strong>
+            ${temComparacao ? `<br><span style="color: #6b7280; font-size: 12px;">Var. vs ${labelAA}: comparação com o mesmo mês do ano anterior (▲ subiu, ▼ caiu; verde = bom, vermelho = ruim). Toque no percentual para ver o valor de ${labelAA}.</span>` : ''}
           </td>
         </tr>`;
       
