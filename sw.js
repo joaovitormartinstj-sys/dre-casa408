@@ -1,7 +1,7 @@
 // Service worker: guarda a "casca" do app no celular para abrir rápido e sem internet.
 // Os dados NÃO passam por aqui: vêm do Apps Script e ficam no cache do próprio app.
 // Ao publicar uma versão nova do index.html, aumente o número abaixo.
-const VERSAO = 'dre-v2';
+const VERSAO = 'dre-v3';
 const ARQUIVOS = [
   './',
   './index.html',

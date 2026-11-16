@@ -123,6 +123,13 @@
     .canvas-container { position: relative; height: 250px; }
     @media (min-width: 768px) { .canvas-container { height: 300px; } }
     
+    .graf-borda { border: 1px solid #e5e7eb; box-shadow: none; }
+    .resumo-desp { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+    .resumo-desp div { background: #f9fafb; border-radius: 10px; padding: 8px 6px; text-align: center; }
+    .resumo-desp small { display: block; font-size: 11px; color: #6b7280; margin-bottom: 2px; }
+    .resumo-desp strong { font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; letter-spacing: -0.2px; }
+    .dica-graf { text-align: center; font-size: 12px; color: #6b7280; margin: -6px 0 10px; }
+    .orcamento-info { display: flex; flex-direction: column; gap: 6px; font-size: 13px; text-align: center; }
     .tab-content { display: none; }
     .tab-content.active { display: block; }
     
@@ -225,6 +232,7 @@
         <button class="tab active" onclick="mudarAba('receita')"><span class="ico">💵</span> Receitas</button>
         <button class="tab" onclick="mudarAba('despesa')"><span class="ico">💸</span> Despesas</button>
         <button class="tab" onclick="mudarAba('dre')"><span class="ico">📊</span> DRE</button>
+        <button class="tab" onclick="mudarAba('graficos')"><span class="ico">📈</span> Gráficos</button>
         <button class="tab" onclick="mudarAba('solar')"><span class="ico">☀️</span> Solar</button>
       </div>
       
@@ -351,7 +359,6 @@
           </div>
         </div>
         
-        <div id="orcamento-alimentacao" style="margin-bottom: 24px;"></div>
         
         <div style="overflow-x: auto;">
           <table class="tabela-dre" id="tabela-dre">
@@ -379,6 +386,51 @@
             <div class="legenda-cor cor-variavel"></div>
             <span><strong>Custos Variáveis:</strong> Alimentação, Transporte, Lazer, Saúde, Animal de Estimação, Mobília Residencial, Manutenção Residencial, etc.</span>
           </div>
+        </div>
+      </div>
+
+      <!-- ABA GRÁFICOS -->
+      <div id="form-graficos" class="tab-content">
+        <div class="filtro-dre">
+          <div style="flex: 1;">
+            <label>Pessoa:</label>
+            <select id="graf-pessoa" onchange="renderizarGraficos()">
+              <option value="todos">Todos (Casal)</option>
+              <option value="João">Apenas João</option>
+              <option value="Sabrina">Apenas Sabrina</option>
+            </select>
+          </div>
+          <div style="flex: 1;">
+            <label>Período:</label>
+            <select id="graf-periodo" onchange="renderizarGraficos()">
+              <option value="tudo">Todo o período</option>
+              <option value="mes-atual" selected>Mês atual</option>
+              <option value="mes-anterior">Mês anterior</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grafico-card graf-borda">
+          <div id="orcamento-alimentacao"></div>
+        </div>
+
+        <div class="grafico-card graf-borda">
+          <h3 class="grafico-titulo">💸 Despesas por categoria</h3>
+          <div id="resumo-despesas" class="resumo-desp"></div>
+          <div id="categorias-vazio"></div>
+          <div class="canvas-container" id="box-categorias"><canvas id="graficoCategorias"></canvas></div>
+          <div class="legenda-dre" style="justify-content: center;">
+            <div class="legenda-item"><div class="legenda-cor" style="background:#ef4444"></div>Fixo</div>
+            <div class="legenda-item"><div class="legenda-cor" style="background:#f59e0b"></div>Variável</div>
+            <div class="legenda-item"><div class="legenda-cor" style="background:#3b82f6"></div>Investimento</div>
+            <div class="legenda-item"><div class="legenda-cor" style="background:#8b5cf6"></div>Antecipação</div>
+          </div>
+        </div>
+
+        <div class="grafico-card graf-borda" style="margin-bottom: 0;">
+          <h3 class="grafico-titulo">📈 Evolução Mensal</h3>
+          <div class="dica-graf">Todos os meses<span id="evolucao-pessoa"></span></div>
+          <div class="canvas-container" style="height: 280px;"><canvas id="graficoMensal"></canvas></div>
         </div>
       </div>
 
@@ -452,10 +504,6 @@
       </div>
     </div>
 
-    <div class="card secao-geral">
-      <h3 class="grafico-titulo">📈 Evolução Mensal</h3>
-      <div class="canvas-container" style="height: 300px;"><canvas id="graficoMensal"></canvas></div>
-    </div>
 
     <!-- LISTAS -->
     <div class="card secao-geral">
@@ -687,30 +735,21 @@
       return document.getElementById(id).classList.contains('active');
     }
 
+    const ABAS = ['receita', 'despesa', 'dre', 'graficos', 'solar'];
     function mudarAba(tipo) {
-      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-      
-      if (tipo === 'receita') {
-        document.querySelectorAll('.tab')[0].classList.add('active');
-        document.getElementById('form-receita').classList.add('active');
-      } else if (tipo === 'despesa') {
-        document.querySelectorAll('.tab')[1].classList.add('active');
-        document.getElementById('form-despesa').classList.add('active');
-      } else if (tipo === 'dre') {
-        document.querySelectorAll('.tab')[2].classList.add('active');
-        document.getElementById('form-dre').classList.add('active');
-        renderizarDRE();
-      } else if (tipo === 'solar') {
-        document.querySelectorAll('.tab')[3].classList.add('active');
-        document.getElementById('form-solar').classList.add('active');
-        renderizarSolar();
-      }
+      document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', ABAS[i] === tipo));
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.toggle('active', t.id === 'form-' + tipo));
 
-      // Na aba Solar, esconde Evolução Mensal e as listas de Receitas/Despesas
+      // Em Gráficos e Solar, esconde as listas de Receitas/Despesas
       document.querySelectorAll('.secao-geral').forEach(el => {
-        el.style.display = tipo === 'solar' ? 'none' : '';
+        el.style.display = (tipo === 'solar' || tipo === 'graficos') ? 'none' : '';
       });
+
+      document.getElementById('alerta').innerHTML = '';
+      if (tipo === 'dre') renderizarDRE();
+      else if (tipo === 'graficos') renderizarGraficos();
+      else if (tipo === 'solar') renderizarSolar();
+      window.scrollTo({ top: 0 });
     }
 
     function salvarConfigSolarForm(e) {
@@ -1179,16 +1218,16 @@
         `).join('');
       }
 
-      graficos();
+      if (abaAtiva('form-graficos')) renderizarGraficos();
       if (abaAtiva('form-solar')) renderizarSolar();
       if (abaAtiva('form-dre')) renderizarDRE();
     }
 
-    function graficos() {
+    function graficos(receitas, despesas) {
       if (g3) { g3.destroy(); g3 = null; }
       if (typeof Chart === 'undefined') return; // sem internet e sem cache da biblioteca
 
-      // Evolução Mensal (sempre usa todos os lançamentos, ignora filtros)
+      // Evolução Mensal (todos os meses; respeita só o filtro de pessoa)
       const mensal = {};
       receitas.forEach(r => {
         const mes = r.data.substring(0, 7);
@@ -1248,6 +1287,166 @@
     
     const fmt = v => (Number(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const fmtP = v => (Number(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%';
+
+    // Categorias de custo (usadas no DRE e nos gráficos)
+    const CUSTOS_FIXOS = ['Prestação da Casa', 'Financiamento Solar', 'Transporte - Parcela', 'Contas - Água', 'Contas - Luz',
+                          'Contas - Gás', 'Contas - Internet', 'Contas - Telefone', 'Contas - IPTU'];
+    const FORA_OPERACIONAL = ['Investimentos', 'Antecipação de Dívidas'];
+    let gCategorias = null;
+
+    // Filtra por pessoa e período (mês no fuso do aparelho)
+    function filtrarLancamentos(pessoa, periodo) {
+      let rec = receitas, desp = despesas;
+      if (pessoa !== 'todos') { rec = rec.filter(r => r.pessoa === pessoa); desp = desp.filter(d => d.pessoa === pessoa); }
+      const porPessoa = { rec, desp };
+      const hoje = new Date();
+      let mesRef = null;
+      if (periodo === 'mes-atual') mesRef = ymLocal(hoje);
+      else if (periodo === 'mes-anterior') mesRef = ymLocal(new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1));
+      if (mesRef) { rec = rec.filter(r => r.data.startsWith(mesRef)); desp = desp.filter(d => d.data.startsWith(mesRef)); }
+      return { rec, desp, porPessoa, mesRef };
+    }
+
+    function renderizarGraficos() {
+      const pessoa = document.getElementById('graf-pessoa').value;
+      const periodo = document.getElementById('graf-periodo').value;
+      const { rec, desp, porPessoa } = filtrarLancamentos(pessoa, periodo);
+
+      // ===== ORÇADO X REALIZADO - ALIMENTAÇÃO =====
+      const orcadoAlimentacao = rec.filter(r => r.categoria === 'Vale Alimentação').reduce((a, r) => a + r.valor, 0);
+      const realizadoAlimentacao = desp.filter(d => d.categoria === 'Alimentação').reduce((a, d) => a + d.valor, 0);
+      const realizadoLanchePizza = desp.filter(d => d.categoria === 'Alimentação (Lanche/Pizza)').reduce((a, d) => a + d.valor, 0);
+      const realizadoTotalAlimentacao = realizadoAlimentacao + realizadoLanchePizza;
+
+      if (gAlimentacao) { gAlimentacao.destroy(); gAlimentacao = null; }
+
+      if (orcadoAlimentacao > 0 || realizadoTotalAlimentacao > 0) {
+        const saldoTotal = orcadoAlimentacao - realizadoTotalAlimentacao;
+
+        document.getElementById('orcamento-alimentacao').innerHTML = `
+          <h3 class="grafico-titulo">🍔 Orçado x Realizado - Alimentação</h3>
+          <div>
+            <div class="canvas-container" style="height: 200px;"><canvas id="graficoAlimentacao"></canvas></div>
+            <div class="orcamento-info" style="margin-top: 16px;">
+              <span>💸 Realizado: R$ ${fmt(realizadoTotalAlimentacao)} (🍽️ R$ ${fmt(realizadoAlimentacao)} + 🍕 R$ ${fmt(realizadoLanchePizza)})</span>
+              <span style="color: ${saldoTotal >= 0 ? '#10b981' : '#ef4444'}; font-weight: 600;">
+                ${saldoTotal >= 0 ? '💰 Saldo' : '⚠️ Excedeu'}: R$ ${fmt(Math.abs(saldoTotal))}
+              </span>
+            </div>
+          </div>`;
+
+        if (typeof Chart !== 'undefined') gAlimentacao = new Chart(document.getElementById('graficoAlimentacao'), {
+          type: 'bar',
+          data: {
+            labels: ['Orçado', 'Realizado'],
+            datasets: [
+              {
+                label: 'Orçado (Vale Alimentação)',
+                data: [orcadoAlimentacao, 0],
+                backgroundColor: '#3b82f6',
+                borderRadius: 6,
+                borderSkipped: false
+              },
+              {
+                label: '🍽️ Alimentação',
+                data: [0, realizadoAlimentacao],
+                backgroundColor: '#10b981',
+                borderRadius: 6,
+                borderSkipped: false
+              },
+              {
+                label: '🍕 Lanche/Pizza',
+                data: [0, realizadoLanchePizza],
+                backgroundColor: '#f59e0b',
+                borderRadius: 6,
+                borderSkipped: false
+              }
+            ]
+          },
+          options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              x: { stacked: true, beginAtZero: true, ticks: { callback: v => 'R$ ' + v.toFixed(0) } },
+              y: { stacked: true, ticks: { font: { size: 13, weight: '600' } } }
+            },
+            plugins: {
+              legend: { position: 'bottom', labels: { font: { size: 12 }, boxWidth: 12, padding: 14 } },
+              tooltip: {
+                callbacks: {
+                  label: ctx => ctx.parsed.x > 0 ? `${ctx.dataset.label}: R$ ${fmt(ctx.parsed.x)}` : null
+                }
+              }
+            }
+          }
+        });
+      } else {
+        document.getElementById('orcamento-alimentacao').innerHTML = `
+          <h3 class="grafico-titulo">🍔 Orçado x Realizado - Alimentação</h3>
+          <div class="empty">Nenhuma receita de Vale Alimentação lançada neste período</div>`;
+      }
+      // ===== FIM ORÇADO X REALIZADO - ALIMENTAÇÃO =====
+
+      // ===== DESPESAS POR CATEGORIA =====
+      if (gCategorias) { gCategorias.destroy(); gCategorias = null; }
+      const porCat = {};
+      desp.forEach(d => { porCat[d.categoria] = (porCat[d.categoria] || 0) + d.valor; });
+      const cats = Object.entries(porCat).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+      const tipoCat = c => CUSTOS_FIXOS.includes(c) ? 'fixo' : c === 'Investimentos' ? 'invest' : c === 'Antecipação de Dívidas' ? 'antec' : 'var';
+      const COR = { fixo: '#ef4444', var: '#f59e0b', invest: '#3b82f6', antec: '#8b5cf6' };
+      const soma = t => cats.filter(([c]) => tipoCat(c) === t).reduce((a, [, v]) => a + v, 0);
+      const totFixo = soma('fixo'), totVar = soma('var');
+      const totDesp = totFixo + totVar;
+
+      document.getElementById('resumo-despesas').innerHTML = `
+        <div><small>Despesas</small><strong style="color:#ef4444">R$ ${fmt(totDesp)}</strong></div>
+        <div><small>🔴 Fixos</small><strong>R$ ${fmt(totFixo)}</strong></div>
+        <div><small>🟠 Variáveis</small><strong>R$ ${fmt(totVar)}</strong></div>`;
+
+      const box = document.getElementById('box-categorias');
+      if (!cats.length) {
+        box.style.display = 'none';
+        document.getElementById('categorias-vazio').innerHTML = '<div class="empty">Nenhuma despesa neste período</div>';
+      } else {
+        box.style.display = '';
+        document.getElementById('categorias-vazio').innerHTML = '';
+        box.style.height = (cats.length * 46 + 30) + 'px';
+        const base = totDesp || 1;
+        if (typeof Chart !== 'undefined') gCategorias = new Chart(document.getElementById('graficoCategorias'), {
+          type: 'bar',
+          data: {
+            labels: cats.map(([c, v]) => {
+              const pct = FORA_OPERACIONAL.includes(c) ? '' : ' · ' + fmtP(v / base * 100);
+              return [c, 'R$ ' + fmt(v) + pct];
+            }),
+            datasets: [{
+              data: cats.map(([, v]) => v),
+              backgroundColor: cats.map(([c]) => COR[tipoCat(c)]),
+              borderRadius: 6, borderSkipped: false, barPercentage: 0.75, categoryPercentage: 0.9
+            }]
+          },
+          options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            layout: { padding: { right: 4 } },
+            scales: {
+              x: { beginAtZero: true, grid: { color: '#f3f4f6' }, ticks: { maxTicksLimit: 4, font: { size: 10 }, callback: v => 'R$ ' + Number(v).toLocaleString('pt-BR') } },
+              y: { grid: { display: false }, ticks: { font: { size: 11 }, color: '#374151', crossAlign: 'far' } }
+            },
+            plugins: {
+              legend: { display: false },
+              tooltip: { callbacks: { title: it => cats[it[0].dataIndex][0], label: ctx => 'R$ ' + fmt(ctx.parsed.x) } }
+            }
+          }
+        });
+      }
+
+      // ===== EVOLUÇÃO MENSAL =====
+      document.getElementById('evolucao-pessoa').textContent = pessoa === 'todos' ? '' : ' · ' + pessoa;
+      graficos(porPessoa.rec, porPessoa.desp);
+    }
 
     function renderizarDRE() {
       const filtroPessoa = document.getElementById('filtro-pessoa').value;
@@ -1312,81 +1511,6 @@
       // Calcular totais
       const totalReceitas = receitasFiltradas.reduce((a, r) => a + r.valor, 0);
       
-      // ===== ORÇADO X REALIZADO - ALIMENTAÇÃO =====
-      const orcadoAlimentacao = receitasFiltradas.filter(r => r.categoria === 'Vale Alimentação').reduce((a, r) => a + r.valor, 0);
-      const realizadoAlimentacao = despesasFiltradas.filter(d => d.categoria === 'Alimentação').reduce((a, d) => a + d.valor, 0);
-      const realizadoLanchePizza = despesasFiltradas.filter(d => d.categoria === 'Alimentação (Lanche/Pizza)').reduce((a, d) => a + d.valor, 0);
-      const realizadoTotalAlimentacao = realizadoAlimentacao + realizadoLanchePizza;
-
-      if (gAlimentacao) { gAlimentacao.destroy(); gAlimentacao = null; }
-
-      if (orcadoAlimentacao > 0 || realizadoTotalAlimentacao > 0) {
-        const saldoTotal = orcadoAlimentacao - realizadoTotalAlimentacao;
-
-        document.getElementById('orcamento-alimentacao').innerHTML = `
-          <h3 class="grafico-titulo">🍔 Orçado x Realizado - Alimentação</h3>
-          <div class="grafico-card" style="margin-bottom: 0;">
-            <div class="canvas-container" style="height: 200px;"><canvas id="graficoAlimentacao"></canvas></div>
-            <div class="orcamento-info" style="margin-top: 16px;">
-              <span>💸 Realizado: R$ ${fmt(realizadoTotalAlimentacao)} (🍽️ R$ ${fmt(realizadoAlimentacao)} + 🍕 R$ ${fmt(realizadoLanchePizza)})</span>
-              <span style="color: ${saldoTotal >= 0 ? '#10b981' : '#ef4444'}; font-weight: 600;">
-                ${saldoTotal >= 0 ? '💰 Saldo' : '⚠️ Excedeu'}: R$ ${fmt(Math.abs(saldoTotal))}
-              </span>
-            </div>
-          </div>`;
-
-        if (typeof Chart !== 'undefined') gAlimentacao = new Chart(document.getElementById('graficoAlimentacao'), {
-          type: 'bar',
-          data: {
-            labels: ['Orçado', 'Realizado'],
-            datasets: [
-              {
-                label: 'Orçado (Vale Alimentação)',
-                data: [orcadoAlimentacao, 0],
-                backgroundColor: '#3b82f6',
-                borderRadius: 6,
-                borderSkipped: false
-              },
-              {
-                label: '🍽️ Alimentação',
-                data: [0, realizadoAlimentacao],
-                backgroundColor: '#10b981',
-                borderRadius: 6,
-                borderSkipped: false
-              },
-              {
-                label: '🍕 Lanche/Pizza',
-                data: [0, realizadoLanchePizza],
-                backgroundColor: '#f59e0b',
-                borderRadius: 6,
-                borderSkipped: false
-              }
-            ]
-          },
-          options: {
-            indexAxis: 'y',
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-              x: { stacked: true, beginAtZero: true, ticks: { callback: v => 'R$ ' + v.toFixed(0) } },
-              y: { stacked: true, ticks: { font: { size: 13, weight: '600' } } }
-            },
-            plugins: {
-              legend: { position: 'bottom', labels: { font: { size: 12 }, boxWidth: 12, padding: 14 } },
-              tooltip: {
-                callbacks: {
-                  label: ctx => ctx.parsed.x > 0 ? `${ctx.dataset.label}: R$ ${fmt(ctx.parsed.x)}` : null
-                }
-              }
-            }
-          }
-        });
-      } else {
-        document.getElementById('orcamento-alimentacao').innerHTML = `
-          <h3 class="grafico-titulo">🍔 Orçado x Realizado - Alimentação</h3>
-          <div class="empty">Nenhuma receita de Vale Alimentação lançada neste período</div>`;
-      }
-      // ===== FIM ORÇADO X REALIZADO - ALIMENTAÇÃO =====
       
       // Separar despesas por tipo (fixo vs variável)
       const custosFixos = [
